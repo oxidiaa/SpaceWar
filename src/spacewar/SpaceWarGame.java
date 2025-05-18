@@ -1,13 +1,12 @@
 package spacewar;
 
-import javax.swing.*;
 import java.awt.*;
-import java.sql.ResultSet;
-import java.awt.geom.AffineTransform;
 import java.awt.image.BufferedImage;
-import java.awt.event.ComponentAdapter;
-import java.awt.event.ComponentEvent;
+import java.net.URL;
+import java.sql.ResultSet;
 import javax.imageio.ImageIO;
+import javax.sound.sampled.*;
+import javax.swing.*;
 
 public class SpaceWarGame extends JFrame {
     private JPanel mainMenuPanel;
@@ -21,6 +20,7 @@ public class SpaceWarGame extends JFrame {
     private float starAngle = 0;
     private GamePanel.Difficulty selectedDifficulty = GamePanel.Difficulty.NORMAL;
     private BufferedImage backgroundImage;
+    private Clip menuSound;
 
     public SpaceWarGame() {
         setTitle("Space War");
@@ -45,6 +45,9 @@ public class SpaceWarGame extends JFrame {
         add(difficultyPanel, "DIFFICULTY");
 
         cardLayout.show(getContentPane(), "MENU");
+
+        loadMenuSound();
+        playMenuSound();
     }
 
     private void initializeBackground() {
@@ -513,6 +516,7 @@ public class SpaceWarGame extends JFrame {
     }
 
     public void showGame() {
+        stopMenuSound();
         if (gamePanelInstance != null) {
             remove(gamePanelInstance);
         }
@@ -526,6 +530,7 @@ public class SpaceWarGame extends JFrame {
     }
 
     public void showMenu() {
+        playMenuSound();
         cardLayout.show(getContentPane(), "MENU");
     }
 
@@ -571,10 +576,52 @@ public class SpaceWarGame extends JFrame {
         scoreArea.setText(sb.toString());
     }
 
+    // Method untuk load sound menu
+    private void loadMenuSound() {
+        try {
+            URL menuSoundURL = getClass().getResource("/resources/dashboard.wav");
+            if (menuSoundURL != null) {
+                AudioInputStream audioIn = AudioSystem.getAudioInputStream(menuSoundURL);
+                menuSound = AudioSystem.getClip();
+                menuSound.open(audioIn);
+                // Atur volume jika perlu
+                FloatControl volume = (FloatControl) menuSound.getControl(FloatControl.Type.MASTER_GAIN);
+                volume.setValue(3.0f); // dB, bisa disesuaikan
+            } else {
+                System.err.println("menu.wav not found in resources!");
+            }
+        } catch (Exception e) {
+            System.err.println("Failed to load menu sound: " + e.getMessage());
+        }
+    }
+
+    // Method untuk memainkan sound menu
+    private void playMenuSound() {
+        try {
+            if (menuSound != null) {
+                menuSound.setFramePosition(0);
+                menuSound.loop(Clip.LOOP_CONTINUOUSLY);
+            }
+        } catch (Exception e) {
+            System.err.println("Failed to play menu sound: " + e.getMessage());
+        }
+    }
+
+    // Method untuk menghentikan sound menu
+    private void stopMenuSound() {
+        if (menuSound != null && menuSound.isRunning()) {
+            menuSound.stop();
+        }
+    }
+
     @Override
     public void dispose() {
         if (starTimer != null) {
             starTimer.stop();
+        }
+        if (menuSound != null) {
+            menuSound.stop();
+            menuSound.close();
         }
         super.dispose();
     }

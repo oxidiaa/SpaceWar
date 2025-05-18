@@ -1,18 +1,17 @@
 package spacewar;
 
-import javax.swing.*;
 import java.awt.*;
 import java.awt.event.*;
+import java.awt.geom.AffineTransform;
+import java.awt.image.BufferedImage;
+import java.io.File;
+import java.net.URL;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.Random;
-import javax.sound.sampled.*;
-import java.io.IOException;
-import java.net.URL;
-import java.awt.image.BufferedImage;
-import java.awt.geom.AffineTransform;
 import javax.imageio.ImageIO;
-import java.io.File;
+import javax.sound.sampled.*;
+import javax.swing.*;
 
 public class GamePanel extends JPanel implements ActionListener, KeyListener {
     private Timer timer;
@@ -148,44 +147,88 @@ public class GamePanel extends JPanel implements ActionListener, KeyListener {
             URL explosionSoundURL = getClass().getResource("/resources/explosion.wav");
             URL dashboardSoundURL = getClass().getResource("/resources/dashboard.wav");
             URL fireSoundURL = getClass().getResource("/resources/fire.wav");
-            
-            if (shootSoundURL != null && explosionSoundURL != null && 
+
+            System.out.println("shootSoundURL: " + shootSoundURL);
+            System.out.println("dashboardSoundURL: " + dashboardSoundURL);
+            System.out.println("fireSoundURL: " + fireSoundURL);
+
+            if (shootSoundURL != null &&
                 dashboardSoundURL != null && fireSoundURL != null) {
-                
+
                 AudioInputStream shootAudio = AudioSystem.getAudioInputStream(shootSoundURL);
-                AudioInputStream explosionAudio = AudioSystem.getAudioInputStream(explosionSoundURL);
                 AudioInputStream dashboardAudio = AudioSystem.getAudioInputStream(dashboardSoundURL);
                 AudioInputStream fireAudio = AudioSystem.getAudioInputStream(fireSoundURL);
-                
+
                 shootSound = AudioSystem.getClip();
                 explosionSound = AudioSystem.getClip();
                 dashboardSound = AudioSystem.getClip();
                 fireSound = AudioSystem.getClip();
-                
+
                 shootSound.open(shootAudio);
-                explosionSound.open(explosionAudio);
                 dashboardSound.open(dashboardAudio);
                 fireSound.open(fireAudio);
-                
+
                 // Set volume higher
-                FloatControl shootVolume = (FloatControl) shootSound.getControl(FloatControl.Type.MASTER_GAIN);
-                FloatControl explosionVolume = (FloatControl) explosionSound.getControl(FloatControl.Type.MASTER_GAIN);
-                FloatControl dashboardVolume = (FloatControl) dashboardSound.getControl(FloatControl.Type.MASTER_GAIN);
-                FloatControl fireVolume = (FloatControl) fireSound.getControl(FloatControl.Type.MASTER_GAIN);
-                
-                shootVolume.setValue(6.0f);
-                explosionVolume.setValue(6.0f);
-                dashboardVolume.setValue(6.0f);
-                fireVolume.setValue(6.0f);
-                
-                // Start dashboard sound
-                dashboardSound.loop(Clip.LOOP_CONTINUOUSLY);
+                try {
+                    FloatControl shootVolume = (FloatControl) shootSound.getControl(FloatControl.Type.MASTER_GAIN);
+                    shootVolume.setValue(6.0f);
+                } catch (Exception ex) {
+                    System.out.println("Shoot sound volume control not supported.");
+                }
+                try {
+                    FloatControl explosionVolume = (FloatControl) explosionSound.getControl(FloatControl.Type.MASTER_GAIN);
+                    explosionVolume.setValue(6.0f);
+                } catch (Exception ex) {
+                    System.out.println("Explosion sound volume control not supported.");
+                }
+                try {
+                    FloatControl dashboardVolume = (FloatControl) dashboardSound.getControl(FloatControl.Type.MASTER_GAIN);
+                    dashboardVolume.setValue(6.0f);
+                } catch (Exception ex) {
+                    System.out.println("Dashboard sound volume control not supported.");
+                }
+                try {
+                    FloatControl fireVolume = (FloatControl) fireSound.getControl(FloatControl.Type.MASTER_GAIN);
+                    fireVolume.setValue(6.0f);
+                } catch (Exception ex) {
+                    System.out.println("Fire sound volume control not supported.");
+                }
+
+                // Test: Play fireSound sekali saat load untuk memastikan bisa bunyi
+                try {
+                    fireSound.setFramePosition(0);
+                    fireSound.start();
+                    System.out.println("fireSound started for test.");
+                } catch (Exception ex) {
+                    System.out.println("fireSound failed to start: " + ex.getMessage());
+                }
+            } else {
+                System.err.println("One or more sound resources not found!");
             }
         } catch (Exception e) {
+            System.err.println("Exception saat load/open sound: " + e.getMessage());
             e.printStackTrace();
         }
         
         timer.start();
+    }
+
+    @Override
+    public void addNotify() {
+        super.addNotify();
+        // Mainkan backsound setelah panel attach ke window
+        try {
+            if (dashboardSound != null) {
+                dashboardSound.setFramePosition(0);
+                dashboardSound.loop(Clip.LOOP_CONTINUOUSLY);
+                System.out.println("Dashboard sound started in addNotify().");
+            } else {
+                System.err.println("dashboardSound is null in addNotify().");
+            }
+        } catch (Exception ex) {
+            System.err.println("Error playing dashboardSound in addNotify: " + ex.getMessage());
+            ex.printStackTrace();
+        }
     }
 
     @Override
@@ -644,17 +687,15 @@ public class GamePanel extends JPanel implements ActionListener, KeyListener {
                             (int)bulletY, 
                             (int)spreadDx, (int)spreadDy));
                     }
-                    
+
                     if (shootSound != null) {
+                        if (shootSound.isRunning()) shootSound.stop();
                         shootSound.setFramePosition(0);
                         shootSound.start();
                     }
-                    
-                    if (fireSound != null) {
-                        fireSound.setFramePosition(0);
-                        fireSound.start();
-                    }
-                    
+
+                    playFireSound(); // Mainkan sound saat tembak
+
                     shootCooldown = SHOOT_COOLDOWN;
                 }
             }
@@ -671,7 +712,12 @@ public class GamePanel extends JPanel implements ActionListener, KeyListener {
         if (!gameOver) {
             if (e.getKeyCode() == KeyEvent.VK_LEFT) leftPressed = true;
             if (e.getKeyCode() == KeyEvent.VK_RIGHT) rightPressed = true;
-            if (e.getKeyCode() == KeyEvent.VK_SPACE) spacePressed = true;
+            if (e.getKeyCode() == KeyEvent.VK_SPACE) {
+                if (!spacePressed) { // hanya play jika sebelumnya belum ditekan
+                    playFireSound();
+                }
+                spacePressed = true;
+            }
             if (e.getKeyCode() == KeyEvent.VK_UP) upPressed = true;
             if (e.getKeyCode() == KeyEvent.VK_DOWN) downPressed = true;
         } else {
@@ -689,7 +735,10 @@ public class GamePanel extends JPanel implements ActionListener, KeyListener {
     public void keyReleased(KeyEvent e) {
         if (e.getKeyCode() == KeyEvent.VK_LEFT) leftPressed = false;
         if (e.getKeyCode() == KeyEvent.VK_RIGHT) rightPressed = false;
-        if (e.getKeyCode() == KeyEvent.VK_SPACE) spacePressed = false;
+        if (e.getKeyCode() == KeyEvent.VK_SPACE) {
+            spacePressed = false;
+            stopFireSound(); // Hentikan sound saat tombol dilepas
+        }
         if (e.getKeyCode() == KeyEvent.VK_UP) upPressed = false;
         if (e.getKeyCode() == KeyEvent.VK_DOWN) downPressed = false;
     }
@@ -721,7 +770,6 @@ public class GamePanel extends JPanel implements ActionListener, KeyListener {
             this.size = size;
             this.type = type;
             this.imageIndex = new Random().nextInt(3); // Random image index
-            
             // Set random health based on type
             Random rand = new Random();
             switch(type) {
@@ -940,6 +988,42 @@ public class GamePanel extends JPanel implements ActionListener, KeyListener {
     public void stopDashboardSound() {
         if (dashboardSound != null) {
             dashboardSound.stop();
+        }
+    }
+
+    // Simpan referensi Clip fire yang sedang berjalan
+    private Clip currentFireClip = null;
+
+    // Mainkan fire.wav (dan simpan referensinya)
+    private void playFireSound() {
+        stopFireSound(); // Pastikan tidak overlap
+        try {
+            AudioInputStream audioIn = AudioSystem.getAudioInputStream(
+                getClass().getResource("/resources/fire.wav"));
+            Clip clip = AudioSystem.getClip();
+            clip.open(audioIn);
+            clip.start();
+            // Simpan referensi dan tambahkan listener untuk auto-clear
+            currentFireClip = clip;
+            clip.addLineListener(event -> {
+                if (event.getType() == LineEvent.Type.STOP || event.getType() == LineEvent.Type.CLOSE) {
+                    if (currentFireClip == clip) {
+                        currentFireClip.close();
+                        currentFireClip = null;
+                    }
+                }
+            });
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+
+    // Hentikan fire.wav jika sedang berjalan
+    private void stopFireSound() {
+        if (currentFireClip != null) {
+            currentFireClip.stop();
+            currentFireClip.close();
+            currentFireClip = null;
         }
     }
 }
