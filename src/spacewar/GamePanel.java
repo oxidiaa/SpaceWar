@@ -533,13 +533,21 @@ public class GamePanel extends JPanel implements ActionListener, KeyListener {
                                 case 2: // Splitter enemy
                                     createExplosion(a);
                                     // Create child enemies
-                                    for (int i = 0; i < 3; i++) {
-                                        int childSize = a.size / 2;
-                                        int childX = a.x + (a.size - childSize) / 2;
-                                        int childY = a.y + (a.size - childSize) / 2;
-                                        a.children.add(new Asteroid(childX, childY, childSize, 0));
+                                    try {
+                                        for (int i = 0; i < 3; i++) {
+                                            int childSize = Math.max(20, a.size / 2); // Minimum size of 20
+                                            int childX = a.x + (a.size - childSize) / 2;
+                                            int childY = a.y + (a.size - childSize) / 2;
+                                            Asteroid child = new Asteroid(childX, childY, childSize, 0);
+                                            a.children.add(child);
+                                        }
+                                        // Add children to the game
+                                        if (!a.children.isEmpty()) {
+                                            asteroids.addAll(a.children);
+                                        }
+                                    } catch (Exception ex) {
+                                        System.err.println("Error creating child enemies: " + ex.getMessage());
                                     }
-                                    asteroids.addAll(a.children);
                                     break;
                             }
                             
@@ -706,16 +714,17 @@ public class GamePanel extends JPanel implements ActionListener, KeyListener {
             this.type = type;
             this.children = new ArrayList<>();
             
-            // Set health based on type
+            // Set random health based on type
+            Random rand = new Random();
             switch(type) {
                 case 0: // Normal enemy
-                    this.health = 5;
+                    this.health = 3 + rand.nextInt(8); // 3-10 health
                     break;
                 case 1: // Boss enemy
-                    this.health = 20;
+                    this.health = 20 + rand.nextInt(21); // 20-40 health
                     break;
                 case 2: // Splitter enemy
-                    this.health = 5;
+                    this.health = 3 + rand.nextInt(8); // 3-10 health
                     break;
             }
         }
