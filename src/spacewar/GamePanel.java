@@ -530,25 +530,6 @@ public class GamePanel extends JPanel implements ActionListener, KeyListener {
                                 case 1: // Boss enemy
                                     createExplosion(a);
                                     break;
-                                case 2: // Splitter enemy
-                                    createExplosion(a);
-                                    // Create child enemies
-                                    try {
-                                        for (int i = 0; i < 3; i++) {
-                                            int childSize = Math.max(20, a.size / 2); // Minimum size of 20
-                                            int childX = a.x + (a.size - childSize) / 2;
-                                            int childY = a.y + (a.size - childSize) / 2;
-                                            Asteroid child = new Asteroid(childX, childY, childSize, 0);
-                                            a.children.add(child);
-                                        }
-                                        // Add children to the game
-                                        if (!a.children.isEmpty()) {
-                                            asteroids.addAll(a.children);
-                                        }
-                                    } catch (Exception ex) {
-                                        System.err.println("Error creating child enemies: " + ex.getMessage());
-                                    }
-                                    break;
                             }
                             
                             if (explosionSound != null) {
@@ -590,14 +571,7 @@ public class GamePanel extends JPanel implements ActionListener, KeyListener {
                     int size = 40 + rand.nextInt(30);
                     // Randomly choose enemy type
                     int type = rand.nextInt(100);
-                    int enemyType;
-                    if (type < 70) { // 70% chance for normal enemy
-                        enemyType = 0;
-                    } else if (type < 90) { // 20% chance for splitter
-                        enemyType = 2;
-                    } else { // 10% chance for boss
-                        enemyType = 1;
-                    }
+                    int enemyType = type < 90 ? 0 : 1; // 90% normal, 10% boss
                     asteroids.add(new Asteroid(warning.spawnX, warning.spawnY, size, enemyType));
                 }
             }
@@ -704,15 +678,13 @@ public class GamePanel extends JPanel implements ActionListener, KeyListener {
     private static class Asteroid {
         int x, y, size;
         int health;
-        int type; // 0: normal, 1: boss, 2: splitter
-        ArrayList<Asteroid> children;
+        int type; // 0: normal, 1: boss
         
         Asteroid(int x, int y, int size, int type) {
             this.x = x;
             this.y = y;
             this.size = size;
             this.type = type;
-            this.children = new ArrayList<>();
             
             // Set random health based on type
             Random rand = new Random();
@@ -722,9 +694,6 @@ public class GamePanel extends JPanel implements ActionListener, KeyListener {
                     break;
                 case 1: // Boss enemy
                     this.health = 20 + rand.nextInt(21); // 20-40 health
-                    break;
-                case 2: // Splitter enemy
-                    this.health = 3 + rand.nextInt(8); // 3-10 health
                     break;
             }
         }
