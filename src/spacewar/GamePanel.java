@@ -11,6 +11,8 @@ import java.io.IOException;
 import java.net.URL;
 import java.awt.image.BufferedImage;
 import java.awt.geom.AffineTransform;
+import javax.imageio.ImageIO;
+import java.io.File;
 
 public class GamePanel extends JPanel implements ActionListener, KeyListener {
     private Timer timer;
@@ -90,11 +92,41 @@ public class GamePanel extends JPanel implements ActionListener, KeyListener {
         
         // Load and optimize images
         try {
-            playerImg = toBufferedImage(new ImageIcon(getClass().getResource("/resources/ship.png")).getImage());
-            asteroidImg = toBufferedImage(new ImageIcon(getClass().getResource("/resources/asteroid.png")).getImage());
-            explosionImg = toBufferedImage(new ImageIcon(getClass().getResource("/resources/explosion.png")).getImage());
-            backgroundImg = toBufferedImage(new ImageIcon(getClass().getResource("/resources/background.jpg")).getImage());
+            // Load background first
+            try {
+                File backgroundFile = new File("src/resources/ingame.png");
+                if (backgroundFile.exists()) {
+                    backgroundImg = ImageIO.read(backgroundFile);
+                    System.out.println("Background image loaded successfully from file");
+                } else {
+                    System.out.println("Background file not found at: " + backgroundFile.getAbsolutePath());
+                    // Try loading from resources as fallback
+                    URL backgroundURL = getClass().getResource("/resources/ingame.png");
+                    if (backgroundURL != null) {
+                        backgroundImg = ImageIO.read(backgroundURL);
+                        System.out.println("Background image loaded successfully from resources");
+                    } else {
+                        System.out.println("Failed to find background image in resources");
+                        backgroundImg = null;
+                    }
+                }
+            } catch (Exception e) {
+                System.err.println("Error loading background: " + e.getMessage());
+                e.printStackTrace();
+                backgroundImg = null;
+            }
+            
+            // Load other images
+            try {
+                playerImg = toBufferedImage(new ImageIcon(getClass().getResource("/resources/ship.png")).getImage());
+                asteroidImg = toBufferedImage(new ImageIcon(getClass().getResource("/resources/asteroid.png")).getImage());
+                explosionImg = toBufferedImage(new ImageIcon(getClass().getResource("/resources/explosion.png")).getImage());
+            } catch (Exception e) {
+                System.err.println("Error loading game images: " + e.getMessage());
+                e.printStackTrace();
+            }
         } catch (Exception e) {
+            System.err.println("Error in image loading process: " + e.getMessage());
             e.printStackTrace();
         }
         
@@ -310,9 +342,11 @@ public class GamePanel extends JPanel implements ActionListener, KeyListener {
 
     private void drawPlayerWithGlow() {
         // Draw engine glow
+        double engineX = playerX + playerWidth/2 + Math.cos(angle + Math.PI) * playerWidth/2;
+        double engineY = playerY + playerHeight/2 + Math.sin(angle + Math.PI) * playerWidth/2;
+        
         RadialGradientPaint engineGlow = new RadialGradientPaint(
-            playerX + playerWidth/2, playerY + playerHeight,
-            playerWidth,
+            (float)engineX, (float)engineY, playerWidth,
             new float[]{0.0f, 0.5f, 1.0f},
             new Color[]{
                 new Color(255, 100, 0, 150),
@@ -321,7 +355,7 @@ public class GamePanel extends JPanel implements ActionListener, KeyListener {
             }
         );
         bufferGraphics.setPaint(engineGlow);
-        bufferGraphics.fillOval(playerX - playerWidth/2, playerY + playerHeight/2, 
+        bufferGraphics.fillOval((int)engineX - playerWidth, (int)engineY - playerWidth, 
                               playerWidth * 2, playerHeight * 2);
         
         // Draw ship glow
@@ -339,8 +373,18 @@ public class GamePanel extends JPanel implements ActionListener, KeyListener {
         bufferGraphics.fillOval(playerX - playerWidth/2, playerY - playerHeight/2, 
                               playerWidth * 2, playerHeight * 2);
         
-        // Draw ship
-        bufferGraphics.drawImage(playerImg, playerX, playerY, playerWidth, playerHeight, null);
+        // Save the current transform
+        AffineTransform oldTransform = bufferGraphics.getTransform();
+        
+        // Move to center of ship
+        bufferGraphics.translate(playerX + playerWidth/2, playerY + playerHeight/2);
+        // Rotate around center
+        bufferGraphics.rotate(angle);
+        // Draw ship centered
+        bufferGraphics.drawImage(playerImg, -playerWidth/2, -playerHeight/2, playerWidth, playerHeight, null);
+        
+        // Restore the transform
+        bufferGraphics.setTransform(oldTransform);
     }
 
     @Override
@@ -352,6 +396,8 @@ public class GamePanel extends JPanel implements ActionListener, KeyListener {
             if (rightPressed) moveDx += currentDifficulty.playerSpeed;
             if (upPressed) moveDy -= currentDifficulty.playerSpeed;
             if (downPressed) moveDy += currentDifficulty.playerSpeed;
+            
+            // Update angle based on movement
             if (moveDx != 0 || moveDy != 0) {
                 angle = Math.atan2(moveDy, moveDx);
                 // Add trail
@@ -359,6 +405,7 @@ public class GamePanel extends JPanel implements ActionListener, KeyListener {
                     trails.add(new Trail(playerX + playerWidth/2, playerY + playerHeight/2));
                 }
             }
+            
             playerX += moveDx;
             playerY += moveDy;
             playerX = Math.max(0, Math.min(getWidth() - playerWidth, playerX));
@@ -509,27 +556,17 @@ public class GamePanel extends JPanel implements ActionListener, KeyListener {
                     double speed = 20.0; // Increased base speed
                     double dx = Math.cos(angle);
                     double dy = Math.sin(angle);
-                    double magnitude = Math.sqrt(dx * dx + dy * dy);
-                    
-                    // If magnitude is 0 (no movement), default to shooting upward
-                    if (magnitude == 0) {
-                        dx = 0;
-                        dy = -1;
-                    } else {
-                        // Normalize and scale to desired speed
-                        dx = (dx / magnitude) * speed;
-                        dy = (dy / magnitude) * speed;
-                    }
                     
                     // Create multiple bullets in a spread pattern
                     for (int i = -1; i <= 1; i++) {
-                        double spreadAngle = Math.atan2(dy, dx) + (i * 0.1); // 0.1 radians spread
+                        double spreadAngle = angle + (i * 0.1); // 0.1 radians spread
                         double spreadDx = Math.cos(spreadAngle) * speed;
                         double spreadDy = Math.sin(spreadAngle) * speed;
                         
-                        bullets.add(new Bullet(playerX + playerWidth / 2 - 2, 
-                                             playerY - playerHeight / 2, 
-                                             (int)spreadDx, (int)spreadDy));
+                        bullets.add(new Bullet(
+                            (int)(playerX + playerWidth/2 + dx * playerWidth/2), 
+                            (int)(playerY + playerHeight/2 + dy * playerHeight/2), 
+                            (int)spreadDx, (int)spreadDy));
                     }
                     
                     if (shootSound != null) {
