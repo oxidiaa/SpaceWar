@@ -30,10 +30,12 @@ public class GamePanel extends JPanel implements ActionListener, KeyListener {
     private boolean gameOver = false;
     private Random rand = new Random();
     private BufferedImage playerImg;
-    private BufferedImage asteroidImg;
+    private ArrayList<BufferedImage> asteroidImgs;
     private BufferedImage explosionImg;
     private Clip shootSound;
     private Clip explosionSound;
+    private Clip dashboardSound;
+    private Clip fireSound;
     private double angle = 0;
     private BufferedImage buffer;
     private Graphics2D bufferGraphics;
@@ -123,7 +125,13 @@ public class GamePanel extends JPanel implements ActionListener, KeyListener {
             // Load other images
             try {
                 playerImg = toBufferedImage(new ImageIcon(getClass().getResource("/resources/ship.png")).getImage());
-                asteroidImg = toBufferedImage(new ImageIcon(getClass().getResource("/resources/asteroid.png")).getImage());
+                
+                // Load multiple asteroid images
+                asteroidImgs = new ArrayList<>();
+                asteroidImgs.add(toBufferedImage(new ImageIcon(getClass().getResource("/resources/asteroid.png")).getImage()));
+                asteroidImgs.add(toBufferedImage(new ImageIcon(getClass().getResource("/resources/asteroid1.png")).getImage()));
+                asteroidImgs.add(toBufferedImage(new ImageIcon(getClass().getResource("/resources/asteroid2.png")).getImage()));
+                
                 explosionImg = toBufferedImage(new ImageIcon(getClass().getResource("/resources/explosion.png")).getImage());
             } catch (Exception e) {
                 System.err.println("Error loading game images: " + e.getMessage());
@@ -138,21 +146,40 @@ public class GamePanel extends JPanel implements ActionListener, KeyListener {
         try {
             URL shootSoundURL = getClass().getResource("/resources/shoot.wav");
             URL explosionSoundURL = getClass().getResource("/resources/explosion.wav");
-            if (shootSoundURL != null && explosionSoundURL != null) {
+            URL dashboardSoundURL = getClass().getResource("/resources/dashboard.wav");
+            URL fireSoundURL = getClass().getResource("/resources/fire.wav");
+            
+            if (shootSoundURL != null && explosionSoundURL != null && 
+                dashboardSoundURL != null && fireSoundURL != null) {
+                
                 AudioInputStream shootAudio = AudioSystem.getAudioInputStream(shootSoundURL);
                 AudioInputStream explosionAudio = AudioSystem.getAudioInputStream(explosionSoundURL);
+                AudioInputStream dashboardAudio = AudioSystem.getAudioInputStream(dashboardSoundURL);
+                AudioInputStream fireAudio = AudioSystem.getAudioInputStream(fireSoundURL);
                 
                 shootSound = AudioSystem.getClip();
                 explosionSound = AudioSystem.getClip();
+                dashboardSound = AudioSystem.getClip();
+                fireSound = AudioSystem.getClip();
                 
                 shootSound.open(shootAudio);
                 explosionSound.open(explosionAudio);
+                dashboardSound.open(dashboardAudio);
+                fireSound.open(fireAudio);
                 
                 // Set volume higher
                 FloatControl shootVolume = (FloatControl) shootSound.getControl(FloatControl.Type.MASTER_GAIN);
                 FloatControl explosionVolume = (FloatControl) explosionSound.getControl(FloatControl.Type.MASTER_GAIN);
+                FloatControl dashboardVolume = (FloatControl) dashboardSound.getControl(FloatControl.Type.MASTER_GAIN);
+                FloatControl fireVolume = (FloatControl) fireSound.getControl(FloatControl.Type.MASTER_GAIN);
+                
                 shootVolume.setValue(6.0f);
                 explosionVolume.setValue(6.0f);
+                dashboardVolume.setValue(6.0f);
+                fireVolume.setValue(6.0f);
+                
+                // Start dashboard sound
+                dashboardSound.loop(Clip.LOOP_CONTINUOUSLY);
             }
         } catch (Exception e) {
             e.printStackTrace();
@@ -201,7 +228,7 @@ public class GamePanel extends JPanel implements ActionListener, KeyListener {
                 bufferGraphics.fillRect(b.x, b.y, 4, 12);
             }
             
-            // Draw asteroids with glow
+            // Draw asteroids with health
             for (Asteroid a : asteroids) {
                 // Draw asteroid glow
                 RadialGradientPaint glow = new RadialGradientPaint(
@@ -216,8 +243,10 @@ public class GamePanel extends JPanel implements ActionListener, KeyListener {
                 bufferGraphics.setPaint(glow);
                 bufferGraphics.fillOval(a.x - 10, a.y - 10, a.size + 20, a.size + 20);
                 
-                // Draw asteroid
-                bufferGraphics.drawImage(asteroidImg, a.x, a.y, a.size, a.size, null);
+                // Draw asteroid with random image
+                if (asteroidImgs != null && !asteroidImgs.isEmpty()) {
+                    bufferGraphics.drawImage(asteroidImgs.get(a.imageIndex), a.x, a.y, a.size, a.size, null);
+                }
                 
                 // Draw health number
                 bufferGraphics.setColor(Color.WHITE);
@@ -621,6 +650,11 @@ public class GamePanel extends JPanel implements ActionListener, KeyListener {
                         shootSound.start();
                     }
                     
+                    if (fireSound != null) {
+                        fireSound.setFramePosition(0);
+                        fireSound.start();
+                    }
+                    
                     shootCooldown = SHOOT_COOLDOWN;
                 }
             }
@@ -679,12 +713,14 @@ public class GamePanel extends JPanel implements ActionListener, KeyListener {
         int x, y, size;
         int health;
         int type; // 0: normal, 1: boss
+        int imageIndex; // Index for asteroid image
         
         Asteroid(int x, int y, int size, int type) {
             this.x = x;
             this.y = y;
             this.size = size;
             this.type = type;
+            this.imageIndex = new Random().nextInt(3); // Random image index
             
             // Set random health based on type
             Random rand = new Random();
@@ -898,6 +934,12 @@ public class GamePanel extends JPanel implements ActionListener, KeyListener {
         // Create more explosion particles
         for (int i = 0; i < 50; i++) {
             particles.add(new Particle(a.x + a.size/2, a.y + a.size/2));
+        }
+    }
+
+    public void stopDashboardSound() {
+        if (dashboardSound != null) {
+            dashboardSound.stop();
         }
     }
 }
