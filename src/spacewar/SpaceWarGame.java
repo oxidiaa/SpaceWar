@@ -272,34 +272,82 @@ public class SpaceWarGame extends JFrame {
         titleLabel.setBorder(BorderFactory.createEmptyBorder(20, 0, 20, 0));
         contentPanel.add(titleLabel, BorderLayout.NORTH);
 
-        // Score area with custom styling
-        scoreArea = new JTextArea() {
+        // Create a custom panel for scores
+        JPanel scoresPanel = new JPanel() {
             @Override
             protected void paintComponent(Graphics g) {
                 Graphics2D g2d = (Graphics2D) g;
                 g2d.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
                 
-                // Semi-transparent background with gradient
-                GradientPaint gradient = new GradientPaint(
-                    0, 0, new Color(0, 0, 0, 200),
-                    0, getHeight(), new Color(0, 0, 0, 150)
-                );
-                g2d.setPaint(gradient);
+                // Draw semi-transparent background
+                g2d.setColor(new Color(0, 0, 0, 200));
                 g2d.fillRoundRect(0, 0, getWidth(), getHeight(), 15, 15);
                 
                 // Draw border glow
                 g2d.setColor(new Color(100, 100, 200, 100));
                 g2d.setStroke(new BasicStroke(2));
                 g2d.drawRoundRect(1, 1, getWidth() - 2, getHeight() - 2, 15, 15);
+            }
+        };
+        scoresPanel.setLayout(new BoxLayout(scoresPanel, BoxLayout.Y_AXIS));
+        scoresPanel.setOpaque(false);
+        scoresPanel.setBorder(BorderFactory.createEmptyBorder(20, 20, 20, 20));
+
+        // Score area with enhanced styling
+        scoreArea = new JTextArea() {
+            @Override
+            protected void paintComponent(Graphics g) {
+                Graphics2D g2d = (Graphics2D) g;
+                g2d.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
                 
-                super.paintComponent(g);
+                // Draw background
+                g2d.setColor(new Color(0, 0, 0, 150));
+                g2d.fillRect(0, 0, getWidth(), getHeight());
+                
+                // Draw text with custom formatting
+                Font font = new Font("Consolas", Font.BOLD, 18);
+                g2d.setFont(font);
+                
+                String[] lines = getText().split("\n");
+                int y = 30;
+                
+                // Draw header
+                g2d.setColor(new Color(255, 215, 0));
+                g2d.drawString("RANK  PLAYER NAME           SCORE", 10, y);
+                y += 30;
+                
+                // Draw separator line
+                g2d.setColor(new Color(100, 100, 200, 150));
+                g2d.drawLine(10, y, getWidth() - 10, y);
+                y += 20;
+                
+                // Draw scores
+                for (String line : lines) {
+                    if (!line.trim().isEmpty()) {
+                        // Draw text with glow
+                        g2d.setColor(new Color(255, 255, 255, 100));
+                        g2d.drawString(line, 12, y - 2);
+                        g2d.drawString(line, 12, y + 2);
+                        
+                        // Draw main text
+                        g2d.setColor(Color.WHITE);
+                        g2d.drawString(line, 12, y);
+                        
+                        // Draw separator line
+                        g2d.setColor(new Color(100, 100, 200, 50));
+                        g2d.drawLine(10, y + 10, getWidth() - 10, y + 10);
+                        
+                        y += 35;
+                    }
+                }
             }
         };
         scoreArea.setEditable(false);
-        scoreArea.setFont(new Font("Arial", Font.BOLD, 16));
+        scoreArea.setFont(new Font("Consolas", Font.BOLD, 18));
         scoreArea.setBackground(new Color(0, 0, 0, 0));
         scoreArea.setForeground(Color.WHITE);
         scoreArea.setCaretColor(Color.WHITE);
+        scoreArea.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
 
         JScrollPane scrollPane = new JScrollPane(scoreArea);
         scrollPane.setOpaque(false);
@@ -500,10 +548,14 @@ public class SpaceWarGame extends JFrame {
             rs = dbConnection.getHighScores();
             int rank = 1;
             while (rs != null && rs.next() && rank <= 10) {
-                sb.append(String.format("%2d. %-20s %5d\n", 
+                String name = rs.getString("player_name");
+                int score = rs.getInt("score");
+                // Format with fixed width for better alignment
+                sb.append(String.format("%-2d.  %-20s  %5d", 
                     rank++,
-                    rs.getString("player_name"),
-                    rs.getInt("score")));
+                    name,
+                    score));
+                sb.append("\n");
             }
         } catch (Exception e) {
             sb.append("Failed to load high scores.");
