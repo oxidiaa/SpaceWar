@@ -67,6 +67,10 @@ public class GamePanel extends JPanel implements ActionListener, KeyListener {
     private Difficulty currentDifficulty = Difficulty.NORMAL;
     private JComboBox<Difficulty> difficultySelector;
 
+    // Add health-related variables
+    private int playerHealth = 3;
+    private static final int MAX_PLAYER_HEALTH = 3;
+
     public GamePanel() {
         setFocusable(true);
         setPreferredSize(new Dimension(800, 600));
@@ -214,6 +218,15 @@ public class GamePanel extends JPanel implements ActionListener, KeyListener {
                 
                 // Draw asteroid
                 bufferGraphics.drawImage(asteroidImg, a.x, a.y, a.size, a.size, null);
+                
+                // Draw health number
+                bufferGraphics.setColor(Color.WHITE);
+                bufferGraphics.setFont(new Font("Arial", Font.BOLD, 16));
+                String healthStr = String.valueOf(a.health);
+                FontMetrics fm = bufferGraphics.getFontMetrics();
+                int healthX = a.x + (a.size - fm.stringWidth(healthStr)) / 2;
+                int healthY = a.y + (a.size + fm.getAscent()) / 2;
+                bufferGraphics.drawString(healthStr, healthX, healthY);
             }
             
             // Draw explosions with particles
@@ -262,6 +275,12 @@ public class GamePanel extends JPanel implements ActionListener, KeyListener {
             bufferGraphics.setFont(new Font("Arial", Font.BOLD, 16));
             String difficultyText = "Difficulty: " + currentDifficulty.name();
             bufferGraphics.drawString(difficultyText, getWidth() - 150, 30);
+            
+            // Draw player health
+            bufferGraphics.setColor(new Color(255, 255, 255, 200));
+            bufferGraphics.setFont(new Font("Arial", Font.BOLD, 24));
+            String healthText = "Health: " + playerHealth;
+            bufferGraphics.drawString(healthText, 20, 70);
         } else {
             // Draw game over with effects
             bufferGraphics.setColor(new Color(255, 0, 0, 200));
@@ -477,15 +496,20 @@ public class GamePanel extends JPanel implements ActionListener, KeyListener {
                 // Collision with player
                 if (a.y + a.size > playerY && a.x < playerX + playerWidth && 
                     a.x + a.size > playerX && a.y < playerY + playerHeight) {
-                    gameOver = true;
-                    // Create explosion particles
-                    for (int i = 0; i < 50; i++) {
-                        particles.add(new Particle(playerX + playerWidth/2, playerY + playerHeight/2));
+                    playerHealth--;
+                    if (playerHealth <= 0) {
+                        gameOver = true;
+                        // Create explosion particles
+                        for (int i = 0; i < 50; i++) {
+                            particles.add(new Particle(playerX + playerWidth/2, playerY + playerHeight/2));
+                        }
+                        JFrame topFrame = (JFrame) SwingUtilities.getWindowAncestor(this);
+                        if (topFrame instanceof SpaceWarGame spaceWarGame) {
+                            spaceWarGame.saveScore(score);
+                        }
                     }
-                    JFrame topFrame = (JFrame) SwingUtilities.getWindowAncestor(this);
-                    if (topFrame instanceof SpaceWarGame spaceWarGame) {
-                        spaceWarGame.saveScore(score);
-                    }
+                    ait.remove();
+                    continue;
                 }
 
                 // Collision with bullets
@@ -494,28 +518,39 @@ public class GamePanel extends JPanel implements ActionListener, KeyListener {
                     Bullet b = bit.next();
                     if (b.x > a.x && b.x < a.x + a.size && 
                         b.y > a.y && b.y < a.y + a.size) {
-                        // Create multiple explosions
-                        for (int i = 0; i < 3; i++) {
-                            if (explosions.size() < MAX_EXPLOSIONS) {
-                                explosions.add(new Explosion(
-                                    a.x + (int)(Math.random() * a.size),
-                                    a.y + (int)(Math.random() * a.size),
-                                    a.size/2 + (int)(Math.random() * a.size/2)
-                                ));
-                            }
-                        }
-                        // Create more explosion particles
-                        for (int i = 0; i < 50; i++) {
-                            particles.add(new Particle(a.x + a.size/2, a.y + a.size/2));
-                        }
-                        if (explosionSound != null) {
-                            explosionSound.setFramePosition(0);
-                            explosionSound.start();
-                        }
-                        ait.remove();
+                        a.health--;
                         bit.remove();
-                        score += (int)(10 * currentDifficulty.scoreMultiplier);
-                        break;
+                        
+                        if (a.health <= 0) {
+                            // Handle different enemy types
+                            switch(a.type) {
+                                case 0: // Normal enemy
+                                    createExplosion(a);
+                                    break;
+                                case 1: // Boss enemy
+                                    createExplosion(a);
+                                    break;
+                                case 2: // Splitter enemy
+                                    createExplosion(a);
+                                    // Create child enemies
+                                    for (int i = 0; i < 3; i++) {
+                                        int childSize = a.size / 2;
+                                        int childX = a.x + (a.size - childSize) / 2;
+                                        int childY = a.y + (a.size - childSize) / 2;
+                                        a.children.add(new Asteroid(childX, childY, childSize, 0));
+                                    }
+                                    asteroids.addAll(a.children);
+                                    break;
+                            }
+                            
+                            if (explosionSound != null) {
+                                explosionSound.setFramePosition(0);
+                                explosionSound.start();
+                            }
+                            ait.remove();
+                            score += (int)(10 * currentDifficulty.scoreMultiplier);
+                            break;
+                        }
                     }
                 }
 
@@ -526,7 +561,7 @@ public class GamePanel extends JPanel implements ActionListener, KeyListener {
                 }
             }
 
-            // Spawn asteroids based on difficulty
+            // Spawn asteroids based on difficulty and type
             int spawnChance = switch (currentDifficulty) {
                 case EASY -> 15;
                 case NORMAL -> 20;
@@ -545,7 +580,17 @@ public class GamePanel extends JPanel implements ActionListener, KeyListener {
                 SpawnWarning warning = spawnIt.next();
                 if (warning.timeLeft == 1) { // Spawn on last frame of warning
                     int size = 40 + rand.nextInt(30);
-                    asteroids.add(new Asteroid(warning.spawnX, warning.spawnY, size));
+                    // Randomly choose enemy type
+                    int type = rand.nextInt(100);
+                    int enemyType;
+                    if (type < 70) { // 70% chance for normal enemy
+                        enemyType = 0;
+                    } else if (type < 90) { // 20% chance for splitter
+                        enemyType = 2;
+                    } else { // 10% chance for boss
+                        enemyType = 1;
+                    }
+                    asteroids.add(new Asteroid(warning.spawnX, warning.spawnY, size, enemyType));
                 }
             }
 
@@ -554,18 +599,38 @@ public class GamePanel extends JPanel implements ActionListener, KeyListener {
                 if (shootCooldown <= 0) {
                     // Normalize the direction vector to ensure consistent speed
                     double speed = 20.0; // Increased base speed
-                    double dx = Math.cos(angle);
-                    double dy = Math.sin(angle);
+                    
+                    // Calculate shooting direction based on current angle
+                    double shootAngle = angle;
+                    double dx = Math.cos(shootAngle);
+                    double dy = Math.sin(shootAngle);
                     
                     // Create multiple bullets in a spread pattern
                     for (int i = -1; i <= 1; i++) {
-                        double spreadAngle = angle + (i * 0.1); // 0.1 radians spread
+                        double spreadAngle = shootAngle + (i * 0.1); // 0.1 radians spread
                         double spreadDx = Math.cos(spreadAngle) * speed;
                         double spreadDy = Math.sin(spreadAngle) * speed;
                         
+                        // Calculate bullet spawn position at the front of the ship
+                        double bulletX = playerX + playerWidth/2 + dx * playerWidth/2;
+                        double bulletY = playerY + playerHeight/2 + dy * playerHeight/2;
+                        
+                        // Create bullet with normalized direction
+                        double magnitude = Math.sqrt(spreadDx * spreadDx + spreadDy * spreadDy);
+                        if (magnitude > 0) {
+                            spreadDx = (spreadDx / magnitude) * speed;
+                            spreadDy = (spreadDy / magnitude) * speed;
+                        }
+                        
+                        // Ensure bullet spawns at the correct position
+                        if (moveDx != 0 || moveDy != 0) {
+                            bulletX = playerX + playerWidth/2 + dx * playerWidth/2;
+                            bulletY = playerY + playerHeight/2 + dy * playerHeight/2;
+                        }
+                        
                         bullets.add(new Bullet(
-                            (int)(playerX + playerWidth/2 + dx * playerWidth/2), 
-                            (int)(playerY + playerHeight/2 + dy * playerHeight/2), 
+                            (int)bulletX, 
+                            (int)bulletY, 
                             (int)spreadDx, (int)spreadDy));
                     }
                     
@@ -630,10 +695,29 @@ public class GamePanel extends JPanel implements ActionListener, KeyListener {
     // Asteroid class
     private static class Asteroid {
         int x, y, size;
-        Asteroid(int x, int y, int size) {
+        int health;
+        int type; // 0: normal, 1: boss, 2: splitter
+        ArrayList<Asteroid> children;
+        
+        Asteroid(int x, int y, int size, int type) {
             this.x = x;
             this.y = y;
             this.size = size;
+            this.type = type;
+            this.children = new ArrayList<>();
+            
+            // Set health based on type
+            switch(type) {
+                case 0: // Normal enemy
+                    this.health = 5;
+                    break;
+                case 1: // Boss enemy
+                    this.health = 20;
+                    break;
+                case 2: // Splitter enemy
+                    this.health = 5;
+                    break;
+            }
         }
     }
 
@@ -820,5 +904,22 @@ public class GamePanel extends JPanel implements ActionListener, KeyListener {
     public void setDifficulty(Difficulty difficulty) {
         this.currentDifficulty = difficulty;
         difficultySelector.setSelectedItem(difficulty);
+    }
+
+    private void createExplosion(Asteroid a) {
+        // Create multiple explosions
+        for (int i = 0; i < 3; i++) {
+            if (explosions.size() < MAX_EXPLOSIONS) {
+                explosions.add(new Explosion(
+                    a.x + (int)(Math.random() * a.size),
+                    a.y + (int)(Math.random() * a.size),
+                    a.size/2 + (int)(Math.random() * a.size/2)
+                ));
+            }
+        }
+        // Create more explosion particles
+        for (int i = 0; i < 50; i++) {
+            particles.add(new Particle(a.x + a.size/2, a.y + a.size/2));
+        }
     }
 }
