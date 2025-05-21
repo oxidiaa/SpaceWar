@@ -123,11 +123,11 @@ public class GamePanel extends JPanel implements ActionListener, KeyListener {
             
             // Load other images
             try {
-                playerImg = toBufferedImage(new ImageIcon(getClass().getResource("/resources/ship.png")).getImage());
+                playerImg = toBufferedImage(new ImageIcon(getClass().getResource("/resources/Spacewar SHIP.png")).getImage());
                 
                 // Load multiple asteroid images
                 asteroidImgs = new ArrayList<>();
-                asteroidImgs.add(toBufferedImage(new ImageIcon(getClass().getResource("/resources/asteroid.png")).getImage()));
+                asteroidImgs.add(toBufferedImage(new ImageIcon(getClass().getResource("/resources/asteroid1.png")).getImage()));
                 asteroidImgs.add(toBufferedImage(new ImageIcon(getClass().getResource("/resources/asteroid1.png")).getImage()));
                 asteroidImgs.add(toBufferedImage(new ImageIcon(getClass().getResource("/resources/asteroid2.png")).getImage()));
                 
@@ -216,6 +216,12 @@ public class GamePanel extends JPanel implements ActionListener, KeyListener {
     @Override
     public void addNotify() {
         super.addNotify();
+        // Agar panel merespon resize JFrame
+        setPreferredSize(null); // Hapus preferred size agar layout manager bisa resize
+        setMinimumSize(new Dimension(100, 100)); // Optional: batas minimum
+        setMaximumSize(null); // Optional: biarkan tidak terbatas
+        setSize(getParent() != null ? getParent().getSize() : getSize());
+
         // Mainkan backsound setelah panel attach ke window
         try {
             if (dashboardSound != null) {
@@ -232,8 +238,28 @@ public class GamePanel extends JPanel implements ActionListener, KeyListener {
     }
 
     @Override
+    public void invalidate() {
+        super.invalidate();
+        // Resize buffer jika panel di-resize
+        Dimension size = getSize();
+        if (size.width > 0 && size.height > 0) {
+            buffer = new BufferedImage(size.width, size.height, BufferedImage.TYPE_INT_ARGB);
+            bufferGraphics = buffer.createGraphics();
+            bufferGraphics.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+            bufferGraphics.setRenderingHint(RenderingHints.KEY_RENDERING, RenderingHints.VALUE_RENDER_QUALITY);
+        }
+    }
+
+    @Override
     protected void paintComponent(Graphics g) {
         super.paintComponent(g);
+        // Resize buffer jika ukuran panel berubah
+        if (buffer == null || buffer.getWidth() != getWidth() || buffer.getHeight() != getHeight()) {
+            buffer = new BufferedImage(getWidth(), getHeight(), BufferedImage.TYPE_INT_ARGB);
+            bufferGraphics = buffer.createGraphics();
+            bufferGraphics.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+            bufferGraphics.setRenderingHint(RenderingHints.KEY_RENDERING, RenderingHints.VALUE_RENDER_QUALITY);
+        }
         // Clear buffer
         bufferGraphics.setColor(new Color(0, 0, 0, 0));
         bufferGraphics.fillRect(0, 0, getWidth(), getHeight());

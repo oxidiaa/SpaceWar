@@ -21,6 +21,7 @@ public class SpaceWarGame extends JFrame {
     private GamePanel.Difficulty selectedDifficulty = GamePanel.Difficulty.NORMAL;
     private BufferedImage backgroundImage;
     private Clip menuSound;
+    private Clip buttonClickSound; // Tambahkan variabel untuk sound button
 
     public SpaceWarGame() {
         setTitle("Space War");
@@ -47,6 +48,7 @@ public class SpaceWarGame extends JFrame {
         cardLayout.show(getContentPane(), "MENU");
 
         loadMenuSound();
+        loadButtonClickSound(); // load sound button
         playMenuSound();
     }
 
@@ -208,6 +210,9 @@ public class SpaceWarGame extends JFrame {
         button.setFocusPainted(false);
         button.setPreferredSize(new Dimension(200, 45));
         button.setOpaque(false);
+        
+        // Tambahkan playButtonClickSound ke semua button
+        button.addActionListener(e -> playButtonClickSound());
         
         return button;
     }
@@ -508,6 +513,7 @@ public class SpaceWarGame extends JFrame {
         button.setPreferredSize(new Dimension(200, 45));
         
         button.addActionListener(e -> {
+            playButtonClickSound(); // mainkan sound
             selectedDifficulty = difficulty;
             showGame();
         });
@@ -531,6 +537,7 @@ public class SpaceWarGame extends JFrame {
 
     public void showMenu() {
         playMenuSound();
+        playButtonClickSound(); // mainkan sound saat kembali ke menu
         cardLayout.show(getContentPane(), "MENU");
     }
 
@@ -584,9 +591,8 @@ public class SpaceWarGame extends JFrame {
                 AudioInputStream audioIn = AudioSystem.getAudioInputStream(menuSoundURL);
                 menuSound = AudioSystem.getClip();
                 menuSound.open(audioIn);
-                // Atur volume jika perlu
                 FloatControl volume = (FloatControl) menuSound.getControl(FloatControl.Type.MASTER_GAIN);
-                volume.setValue(3.0f); // dB, bisa disesuaikan
+                volume.setValue(3.0f);
             } else {
                 System.err.println("menu.wav not found in resources!");
             }
@@ -595,12 +601,54 @@ public class SpaceWarGame extends JFrame {
         }
     }
 
+    // Method untuk load sound button click
+    private void loadButtonClickSound() {
+        try {
+            URL buttonSoundURL = getClass().getResource("/resources/Button click effect 1.wav");
+            if (buttonSoundURL != null) {
+                AudioInputStream audioIn = AudioSystem.getAudioInputStream(buttonSoundURL);
+                buttonClickSound = AudioSystem.getClip();
+                buttonClickSound.open(audioIn);
+                FloatControl volume = (FloatControl) buttonClickSound.getControl(FloatControl.Type.MASTER_GAIN);
+                volume.setValue(3.0f);
+            } else {
+                System.err.println("button_click.wav not found in resources!");
+            }
+        } catch (Exception e) {
+            System.err.println("Failed to load button click sound: " + e.getMessage());
+        }
+    }
+
+    // Method untuk memainkan sound button click (tanpa delay, selalu buat Clip baru)
+    private void playButtonClickSound() {
+        try {
+            URL buttonSoundURL = getClass().getResource("/resources/Button click effect 1.wav");
+            if (buttonSoundURL != null) {
+                AudioInputStream audioIn = AudioSystem.getAudioInputStream(buttonSoundURL);
+                Clip tempClip = AudioSystem.getClip();
+                tempClip.open(audioIn);
+                tempClip.start();
+                // Tutup clip setelah selesai agar tidak bocor resource
+                tempClip.addLineListener(event -> {
+                    if (event.getType() == LineEvent.Type.STOP || event.getType() == LineEvent.Type.CLOSE) {
+                        tempClip.close();
+                    }
+                });
+            }
+        } catch (Exception e) {
+            System.err.println("Failed to play button click sound: " + e.getMessage());
+        }
+    }
+
     // Method untuk memainkan sound menu
     private void playMenuSound() {
         try {
             if (menuSound != null) {
+                if (menuSound.isRunning()) {
+                    menuSound.stop();
+                }
                 menuSound.setFramePosition(0);
-                menuSound.loop(Clip.LOOP_CONTINUOUSLY);
+                menuSound.start();
             }
         } catch (Exception e) {
             System.err.println("Failed to play menu sound: " + e.getMessage());
@@ -609,8 +657,12 @@ public class SpaceWarGame extends JFrame {
 
     // Method untuk menghentikan sound menu
     private void stopMenuSound() {
-        if (menuSound != null && menuSound.isRunning()) {
-            menuSound.stop();
+        try {
+            if (menuSound != null && menuSound.isRunning()) {
+                menuSound.stop();
+            }
+        } catch (Exception e) {
+            System.err.println("Failed to stop menu sound: " + e.getMessage());
         }
     }
 
